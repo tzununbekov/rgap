@@ -1,0 +1,22 @@
+FROM --platform=$BUILDPLATFORM golang AS build
+
+ARG GIT_DESC=undefined
+
+RUN apt update && apt install -y ncat
+
+WORKDIR /go/src/github.com/SenseUnit/rgap
+COPY . .
+ARG TARGETOS TARGETARCH
+RUN GOOS=$TARGETOS GOARCH=$TARGETARCH CGO_ENABLED=0 go build -a -tags netgo -ldflags '-s -w -extldflags "-static" -X main.version='"$GIT_DESC" ./cmd/rgap
+
+FROM busybox
+
+COPY watchdog.sh /
+RUN chmod +x /watchdog.sh
+
+COPY --from=build /go/src/github.com/SenseUnit/rgap/rgap /
+COPY --from=build /usr/bin/nc /
+USER 9999:9999
+
+
+ENTRYPOINT ["/watchdog.sh", "localhost:10000", "10", "/rgap"]
